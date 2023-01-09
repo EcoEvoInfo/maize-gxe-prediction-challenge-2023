@@ -6,7 +6,7 @@ We trained a 1D-CNN to reduce the dimensionality of input weather data. Eight di
 
 Weights and output logs for the best model for each LOYO set can be found in the `best_models` directory.
 
-Best models for each LOYO used different archictures as follows (see `02_train_weather_genobatch.py` for one example or output of running `model.summary()` after loading model in `best_models`: 
+Best models for each LOYO used different archictures as follows (see `02_train_weather_genobatch.py` for one example or output of running `model.summary()` after loading model in `best_models`): 
 
 | Architecture | 2014 | 2015 | 2016 | 2017 | 2018 | 2019 | 2020 | 2021|
 | :--- | ---:|---:|---:|---:|---:|---:|---:|---:| 
