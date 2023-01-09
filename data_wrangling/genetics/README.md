@@ -11,7 +11,7 @@ and South America to altitude and latitude [(Romero Navarro et al. 2017)](https:
 SNPs associated with altitude (61%) were also associated with variation in flowering time
 in experiments [(Romero Navarro et al. 2017)](https://doi.org/10.1038/ng.3784). Early flowering is an important
 adaptation to high latitudes and high elevations, where there is a
-shorter growing season. We hypothesized that SNPs predictive of flowering time variation ('GxE SNPs')
+shorter growing season. We hypothesized that SNPs important for adaptation to high elevations and high latitudes ('GxE SNPs'), which includes those predictive of flowering time variation, 
 could be important for explaining variation in performance of different
 individuals across latitudes in the G2F locations. 
 
