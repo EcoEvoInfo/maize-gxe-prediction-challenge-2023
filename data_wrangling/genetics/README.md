@@ -13,7 +13,7 @@ in experiments [(Romero Navarro et al. 2017)](https://doi.org/10.1038/ng.3784). 
 adaptation to high latitudes and high elevations, where there is a
 shorter growing season. We hypothesized that SNPs predictive of flowering time variation ('GxE SNPs')
 could be important for explaining variation in performance of different
-individuals across different environments in the G2F locations. 
+individuals across latitudes in the G2F locations. 
 
 ## popVAE latent dimensions
 
