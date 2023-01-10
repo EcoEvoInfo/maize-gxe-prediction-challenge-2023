@@ -1,0 +1,134 @@
+---
+title: "Create combined LOYO sets"
+author: "Emily Bellis"
+date: ""
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, options(scipen=999, digits = 2))
+```
+
+Load & restructure environmental covariate data:
+```{r}
+library(tidyverse)
+library(janitor)
+
+loyo <- '2021'
+path_to_competition <- '~/Desktop/Projects/MLGxE/competition/Maize_GxE_Competition_Data/'
+
+ec_train <- read.csv(paste0(path_to_competition, 'Training_Data/6_Training_EC_Data_2014_2021.csv', sep = ""), header = T)
+ec_test <- read.csv(paste0(path_to_competition,'Testing_Data/6_Testing_EC_Data_2022.csv', sep = ""), header = T)
+
+ec_train <- rbind.data.frame(ec_train, ec_test) # process together
+
+# df of unique env x pheno stages (rows) x 87 features
+df <- ec_train %>% 
+  pivot_longer(cols = -1) %>%
+  separate(name, into=c('trait','stage'), sep = '_p') %>%
+  separate(stage, into = c('stage','depth'), sep = '_') %>%
+  mutate(trait_depth = paste0(trait,depth)) %>%
+  select(-c(trait, depth)) %>%
+  pivot_wider(names_from = trait_depth, values_from = value)
+
+# split into test, val, and train
+train <- df %>% 
+  filter(!grepl("2022", Env)) %>%
+  filter(!grepl(loyo, Env)) 
+
+val <- df %>% 
+  filter(grepl(loyo, Env))
+
+test <- df %>% 
+  filter(grepl("2022", Env))
+
+# pca
+pc <- prcomp(train[,-c(1:2)], center = TRUE, scale. = TRUE)
+pc.val <- predict(pc, val[,-c(1:2)])
+pc.test <- predict(pc, test[,-c(1:2)])
+
+tmp <- cbind.data.frame(Env = train$Env, stage = train$stage, PC1 = pc$x[,1], PC2 = pc$x[,2])
+tmp.val <- cbind.data.frame(Env = val$Env, stage = val$stage, PC1 = pc.val[,1], PC2 = pc.val[,2])
+tmp.test <- cbind.data.frame(Env = test$Env, stage = test$stage, PC1 = pc.test[,1], PC2 = pc.test[,2])
+
+df_EC <- rbind.data.frame(tmp, tmp.val, tmp.test) %>% 
+  pivot_longer(cols = PC1:PC2) %>% 
+  pivot_wider(names_from = c(stage,name), values_from = value)
+```
+
+Add a column for previous crop:
+```{r}
+meta <- read.csv(paste0(path_to_competition,'Training_Data/2_Training_Meta_Data_2014_2021.csv',sep = ""), header = T)
+meta$legume <- as.integer(grepl(pattern = "soybean|peanut", x = meta$Previous_Crop))
+meta <- select(meta, c(Env, legume))
+
+meta2 <- read.csv(paste0(path_to_competition,'Testing_Data/2_Testing_Meta_Data_2022.csv', sep = ""), header = T)
+meta2$legume <- as.integer(grepl(pattern = "soybean|peanut", x = meta2$Previous_Crop))
+meta2 <- select(meta2, c(Env, legume))
+
+meta <- rbind.data.frame(meta, meta2)
+
+df_em <- left_join(df_EC, meta)
+```
+
+Add soil variables:
+```{r}
+soil <- read.csv(paste0(path_to_competition,'Training_Data/3_Training_Soil_Data_2015_2021.csv', sep = ""), header = T)
+soil2 <- read.csv(paste0(path_to_competition,'Testing_Data/3_Testing_Soil_Data_2022.csv', sep = ""),header = T)
+
+# removing non-quantitative columns, ones with >50% missing data, and spearman correlation >0.9
+soil <- soil %>%
+  select(-c(Year, LabID, Date.Received, Date.Reported, E.Depth, WDRF.Buffer.pH, Texture.No, Texture, BpH, Comments, Zinc.ppm.Zn, Iron.ppm.Fe, Manganese.ppm.Mn, Copper.ppm.Cu, Boron.ppm.B, lbs.N.A, CEC.Sum.of.Cations.me.100g))
+
+soil2 <- soil2 %>%
+  select(-c(Year, LabID, Date.Received, Date.Reported, E.Depth, WDRF.Buffer.pH, Texture.No, Texture, Comments, lbs.N.A, CEC.Sum.of.Cations.me.100g))
+
+soil <- rbind.data.frame(soil, soil2)
+
+df_ems <- left_join(df_em, soil)
+dim(df_ems) # 189 x 38
+```
+
+Combine latent dimensions and genotype data:
+```{r}
+lds <- read.csv('genetics/AgAdapt_LDS_v0.2_Training.csv', header = T)
+lds2 <- read.csv('genetics/AgAdapt_LDS_v0.2_Testing.csv', header = T)
+lds <- rbind.data.frame(lds, lds2)
+
+lds <- lds %>% unique() %>% na.omit()
+
+gxesnps <- read.csv('genetics/GxE_snps.csv', header = T, check.names = F)
+gxesnps <- gxesnps[, !duplicated(colnames(gxesnps))]
+colnames(gxesnps)[1] <- "Hybrid"
+
+df_g <- left_join(lds, gxesnps)
+df_g <- select(df_g, -Yield_Mg_ha)
+```
+
+Add labels:
+```{r}
+yld <- read.csv(paste0(path_to_competition,'Training_Data/1_Training_Trait_Data_2014_2021.csv', sep = ""), header = T)
+yld2 <- read.csv(paste0(path_to_competition,'Testing_Data/1_Submission_Template_2022.csv', sep = ""), header = T)
+
+yld <- yld %>%
+  select(Env, Hybrid, Yield_Mg_ha) %>%
+  na.omit()
+
+yld <- rbind.data.frame(yld, yld2)
+
+df_ye <- left_join(yld, df_ems)
+df_yge <- left_join(df_ye, df_g)
+```
+
+Add weather data & write to file:
+```{r}
+weather <- read.table(paste0('weather/reduced_weather_features/loyo',loyo,'_weather_reduced.txt', sep = ""), header = F)
+  
+# drop empty nodes from 1d-cnn
+weather <- remove_constant(weather)
+colnames(weather)[1] <- 'Env'
+  
+# combine with other parts of dataframe and write to file
+df <- left_join(df_yge, weather)
+write.csv(df,file = paste0('combo_dfs/combo_loyo_',loyo,'.csv'), quote = F, row.names = F)
+```
