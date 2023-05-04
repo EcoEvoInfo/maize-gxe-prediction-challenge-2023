@@ -16,6 +16,7 @@ library(janitor)
 
 loyo <- '2021'
 path_to_competition <- '~/Desktop/Projects/MLGxE/competition/Maize_GxE_Competition_Data/'
+path_to_project <- '~/Documents/GitHub/maize-gxe-prediction-challenge-2023/data_wrangling/'
 
 ec_train <- read.csv(paste0(path_to_competition, 'Training_Data/6_Training_EC_Data_2014_2021.csv', sep = ""), header = T)
 ec_test <- read.csv(paste0(path_to_competition,'Testing_Data/6_Testing_EC_Data_2022.csv', sep = ""), header = T)
@@ -91,18 +92,22 @@ dim(df_ems) # 189 x 38
 
 Combine latent dimensions and genotype data:
 ```{r}
-lds <- read.csv('genetics/AgAdapt_LDS_v0.2_Training.csv', header = T)
-lds2 <- read.csv('genetics/AgAdapt_LDS_v0.2_Testing.csv', header = T)
+## update with link to Emilio's files
+lds <- read.csv('~/Downloads/v0-3/AgAdapt_Master_Dataset_v0.2_Training.csv', header = T)[,1:8]
+## update with link to Emilio's files
+lds2 <- read.csv('~/Downloads/v0-3/AgAdapt_Master_Dataset_v0.2_Testing.csv', header = T)[,1:8]
 lds <- rbind.data.frame(lds, lds2)
 
-lds <- lds %>% unique() %>% na.omit()
+lds <- lds %>% 
+  select(-c(Env, Yield_Mg_ha)) %>%
+  distinct() %>% 
+  na.omit()
 
-gxesnps <- read.csv('genetics/GxE_snps.csv', header = T, check.names = F)
+gxesnps <- read.csv(paste0(path_to_project,'genetics/GxE_snps.csv'), header = T, check.names = F)
 gxesnps <- gxesnps[, !duplicated(colnames(gxesnps))]
 colnames(gxesnps)[1] <- "Hybrid"
 
 df_g <- left_join(lds, gxesnps)
-df_g <- select(df_g, -Yield_Mg_ha)
 ```
 
 Add labels:
@@ -117,12 +122,12 @@ yld <- yld %>%
 yld <- rbind.data.frame(yld, yld2)
 
 df_ye <- left_join(yld, df_ems)
-df_yge <- left_join(df_ye, df_g)
+df_yge <- left_join(df_ye, df_g, by = "Hybrid")
 ```
 
 Add weather data & write to file:
 ```{r}
-weather <- read.table(paste0('weather/reduced_weather_features/loyo',loyo,'_weather_reduced.txt', sep = ""), header = F)
+weather <- read.table(paste0(path_to_project,'weather/reduced_weather_features/loyo',loyo,'_weather_reduced.txt', sep = ""), header = F)
   
 # drop empty nodes from 1d-cnn
 weather <- remove_constant(weather)
@@ -130,5 +135,5 @@ colnames(weather)[1] <- 'Env'
   
 # combine with other parts of dataframe and write to file
 df <- left_join(df_yge, weather)
-write.csv(df,file = paste0('combo_dfs/combo_loyo_',loyo,'.csv'), quote = F, row.names = F)
+write.csv(df,file = paste0('~/Desktop/combo_dfs/combo_loyo_',loyo,'.csv'), quote = F, row.names = F)
 ```
